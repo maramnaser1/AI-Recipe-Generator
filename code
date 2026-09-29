@@ -1,0 +1,132 @@
+import requests
+import json
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox
+
+# =========================
+# API configuration
+API_KEY = "AIzaSyDjjvMwyg2ouF8noQ2N7oYk0yT4fzy7RIk"
+API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+
+if not API_KEY:
+    print("⚠️ Error: API key not found.")
+    exit()
+
+# =========================
+def generate_recipe():
+    """Handles recipe generation using Gemini API."""
+    
+    ingredients = ingredients_entry.get().strip()
+    meal_type = meal_type_var.get()
+
+    # Validate user input
+    if not ingredients:
+        messagebox.showwarning("Warning", "⚠️ You must enter at least one ingredient.")
+        return
+
+    # Build the text prompt for the LLM
+    prompt_text = f"""
+Please create a {meal_type} recipe using the following ingredients: {ingredients}.
+Include:
+- A creative name starting with 'Recipe Title:'
+- A short introduction
+- Ingredients list labeled 'Ingredients:'
+- Step-by-step instructions labeled 'Cooking Steps:'
+Make the recipe coherent, easy to follow, and suitable for home cooking.
+"""
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": API_KEY
+    }
+
+    data = {
+        "model": "gemini-2.5-flash",
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt_text}
+                ]
+            }
+        ]
+    }
+
+    # Clear previous output and show loading message
+    output_box.delete("1.0", tk.END)
+    output_box.insert(tk.END, "🔄 Generating recipe... please wait.\n")
+
+    try:
+        # Send POST request to Gemini API
+        response = requests.post(API_URL, headers=headers, json=data)
+
+        # Handle successful response
+        if response.status_code == 200:
+            result = response.json()
+            try:
+                # Extract recipe text from response
+                recipe = result["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError):
+                recipe = json.dumps(result, indent=2)
+
+            # Display the formatted recipe
+            output_box.delete("1.0", tk.END)
+            output_box.insert(tk.END, "============================\n")
+            output_box.insert(tk.END, "🍽️  Generated Recipe\n")
+            output_box.insert(tk.END, "============================\n")
+            output_box.insert(tk.END, recipe.strip() + "\n")
+            output_box.insert(tk.END, "============================\n✅ Recipe generation complete.\n")
+
+        # Handle unsuccessful response
+        else:
+            output_box.delete("1.0", tk.END)
+            output_box.insert(tk.END, f"❌ Error: {response.status_code}\n{response.text}")
+
+    except Exception as e:
+        # Handle unexpected errors
+        messagebox.showerror("Error", str(e))
+
+# =========================
+# Build the main GUI window
+root = tk.Tk()
+root.title("🍴 AI Recipe Generator")
+root.geometry("800x700")
+root.configure(bg="#f5efe6")
+root.resizable(False, False)
+
+# Title label
+title_label = tk.Label(root, text="AI Recipe Generator", font=("Arial", 28, "bold"), bg="#f5efe6", fg="#5c4033")
+title_label.pack(pady=25)
+
+# Input frame container
+input_frame = tk.Frame(root, bg="#d2b48c", bd=2, relief=tk.RIDGE)
+input_frame.pack(padx=25, pady=15, fill=tk.X)
+
+# Configure input frame layout
+input_frame.grid_columnconfigure(0, weight=1)
+
+# Label and entry for ingredients
+tk.Label(input_frame, text="Enter Ingredients:", font=("Arial", 13, "bold"), bg="#d2b48c", fg="#3e2723").grid(row=0, column=0, padx=15, pady=(15,5))
+ingredients_entry = tk.Entry(input_frame, width=60, font=("Arial", 12))
+ingredients_entry.grid(row=1, column=0, padx=15, pady=(0,15))
+
+# Label and dropdown for meal type selection
+tk.Label(input_frame, text="Select Meal Type:", font=("Arial", 13, "bold"), bg="#d2b48c", fg="#3e2723").grid(row=2, column=0, padx=15, pady=(10,5))
+meal_type_var = tk.StringVar(value="Main Course")
+meal_options = ["Main Course", "Dessert", "Salad", "Soup", "Snack", "Breakfast"]
+meal_dropdown = ttk.Combobox(input_frame, textvariable=meal_type_var, values=meal_options, width=28, font=("Arial", 12))
+meal_dropdown.grid(row=3, column=0, padx=15, pady=(0,15))
+
+# Center all widgets in the input frame
+for widget in input_frame.winfo_children():
+    widget.grid_configure(sticky="nsew")
+
+# Generate button
+generate_btn = tk.Button(root, text="Generate Recipe", command=generate_recipe, bg="#8b4513", fg="white", font=("Arial", 14, "bold"))
+generate_btn.pack(pady=20)
+
+# Output text area with scroll bar
+output_box = scrolledtext.ScrolledText(root, width=90, height=25, wrap=tk.WORD, font=("Consolas", 12))
+output_box.pack(padx=25, pady=10)
+
+# Run the application
+root.mainloop()
